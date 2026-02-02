@@ -1,20 +1,18 @@
-import type { Metadata } from "next"
-import "./globals.css"
-import { ReactNode } from "react"
-import { Providers } from "./providers"
+import Header from "@/components/Headers"
+import { Providers } from "@/app/providers"  // Changed from "@/components/providers"
 
-export const metadata: Metadata = {
-  title: "Tsender",
-}
-
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
       <body>
-         <Providers>
+        <Providers>
+          <Header />
           {children}
         </Providers>
-       
       </body>
     </html>
   )
