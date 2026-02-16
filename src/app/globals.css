@@ -1,24 +1,9 @@
-/* src/app/globals.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* Your custom variables and styles below */
-:root {
-  --background: #ffffff;
-  --foreground: #9b1818;
+.inner-shadow {
+  box-shadow: 0px -3px 0px 0.5px rgba(0, 0, 0, 0.15) inset;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #46a321;
-    --foreground: #f71111;
-  }
-}
-
-/* Keep your theme or custom token usage (remove the invalid @theme directive if not supported) */
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.ju367vei {
+  box-shadow: 0px 0px 0px 0px rgba(0, 0, 0, 0) !important;
 }
