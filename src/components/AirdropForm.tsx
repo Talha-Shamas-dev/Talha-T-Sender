@@ -1,35 +1,37 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { readContract, writeContract } from "@wagmi/core";
+import { useAccount, useChainId } from "wagmi";
 import InputField from "@/components/ui/InputField";
 import { chainsToTSender, erc20Abi } from "@/constants";
-import { useChainId, useAccount, useWriteContract } from "wagmi";
-import { readContract } from "@wagmi/core";
 import { calculateTotal } from "@/utils/calculateTotal/calculateTotal";
-import { waitForTransactionReceipt } from "viem/actions";
-import { wagmiPublicClient } from "@/wagmiClient";
+import config from "@/rainbowkitConfig"; // Wagmi + RainbowKit config
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
   const [amount, setAmount] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const chainId = useChainId();
   const { address, isConnected } = useAccount();
 
   const totalAmountNeed = useMemo(() => calculateTotal(amount), [amount]);
 
-  const { writeContractAsync, isLoading } = useWriteContract();
+  // Get the TSender contract address for the current chain
+  const tSenderAddress = chainsToTSender[chainId]?.tsender;
 
-  async function getApprovedAmount(tsenderAddress?: string): Promise<number> {
-    if (!tsenderAddress || !address) return 0;
+  async function getApprovedAmount(): Promise<number> {
+    if (!tSenderAddress || !address) return 0;
 
     try {
       const allowance = await readContract({
         address: tokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: "allowance",
-        args: [address, tsenderAddress as `0x${string}`],
+        args: [address, tSenderAddress as `0x${string}`],
+        chainId,
       });
       return Number(allowance);
     } catch (err) {
@@ -40,34 +42,37 @@ export default function AirdropForm() {
 
   async function handleSubmit() {
     if (!isConnected) return alert("Please connect your wallet.");
-    if (!tokenAddress || !recipientAddress || !amount)
-      return alert("All fields are required.");
-
-    const tSenderAddress = chainsToTSender[chainId]?.tsender;
+    if (!tokenAddress || !recipientAddress || !amount) return alert("All fields are required.");
     if (!tSenderAddress) return alert("Unsupported chain.");
 
-    const approvedAmount = await getApprovedAmount(tSenderAddress);
+    setIsLoading(true);
 
     try {
+      const approvedAmount = await getApprovedAmount();
+
+      // Approve if needed
       if (approvedAmount < totalAmountNeed) {
-        const approvalHash = await writeContractAsync({
+        const approvalHash = await writeContract({
           abi: erc20Abi,
           address: tokenAddress as `0x${string}`,
           functionName: "approve",
           args: [tSenderAddress as `0x${string}`, BigInt(totalAmountNeed)],
+          chainId,
         });
 
-        const approvalReceipt = await waitForTransactionReceipt(wagmiPublicClient, {
-          hash: approvalHash,
-        });
-
-        console.log("Approval confirmed:", approvalReceipt);
+        console.log("Approval tx sent:", approvalHash);
+        // RainbowKit/Wagmi automatically waits for tx confirmation if you use their hooks; otherwise you can manually wait
       }
 
       console.log("Ready to send:", { tokenAddress, recipientAddress, totalAmountNeed });
-      // TODO: call your TSender contract here
+      // TODO: call your TSender contract here for airdrop
+
+      alert("Airdrop ready! Check console for details.");
     } catch (err) {
       console.error("Transaction failed:", err);
+      alert("Transaction failed! See console for details.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
