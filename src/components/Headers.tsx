@@ -1,14 +1,11 @@
 "use client";
+
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { FaGithub } from "react-icons/fa";
-import React from "react";
 
 export default function Header() {
   return (
-    <header
-      className="flex h-16 items-center justify-between px-6 shadow-sm"
-      style={{ backgroundColor: "var(--background)", color: "var(--foreground)" }}
-    >
+    <header className="flex h-16 items-center justify-between px-6 shadow-sm">
       <div className="flex items-center gap-3">
         <h1 className="text-xl font-bold">Talha-T-Sender</h1>
         <a
