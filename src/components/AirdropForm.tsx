@@ -1,116 +1,120 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { readContract, writeContract } from "@wagmi/core";
-import { useAccount, useChainId } from "wagmi";
 import InputField from "@/components/ui/InputField";
 import { chainsToTSender, erc20Abi } from "@/constants";
 import { calculateTotal } from "@/utils/calculateTotal/calculateTotal";
-import config from "@/rainbowkitConfig"; // Wagmi + RainbowKit config
+import {
+  useAccount,
+  useChainId,
+  useReadContract,
+  usePrepareTransactionRequest,
+  useWriteContract,
+} from "wagmi";
+import type { Address } from "viem";
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
   const [amount, setAmount] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
   const chainId = useChainId();
   const { address, isConnected } = useAccount();
 
-  const totalAmountNeed = useMemo(() => calculateTotal(amount), [amount]);
+  const totalAmount = useMemo(() => BigInt(calculateTotal(amount) || 0), [amount]);
+  const tSenderAddress = chainsToTSender[chainId ?? 1]?.tsender as Address | undefined;
 
-  // Get the TSender contract address for the current chain
-  const tSenderAddress = chainsToTSender[chainId]?.tsender;
+  const isReady = isConnected && tokenAddress && tSenderAddress && totalAmount > 0n;
 
-  async function getApprovedAmount(): Promise<number> {
-    if (!tSenderAddress || !address) return 0;
+  /* =========================
+     READ ALLOWANCE
+  ========================== */
+  const { data: allowance } = useReadContract({
+    address: tokenAddress as Address,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: address && tSenderAddress ? [address, tSenderAddress] : undefined,
+    enabled: Boolean(address && tokenAddress && tSenderAddress),
+    watch: true,
+  });
 
-    try {
-      const allowance = await readContract({
-        address: tokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [address, tSenderAddress as `0x${string}`],
-        chainId,
-      });
-      return Number(allowance);
-    } catch (err) {
-      console.error("Allowance check failed:", err);
-      return 0;
-    }
-  }
+  const needsApproval = allowance !== undefined && (allowance as bigint) < totalAmount;
 
-  async function handleSubmit() {
-    if (!isConnected) return alert("Please connect your wallet.");
+  /* =========================
+     PREPARE APPROVE
+  ========================== */
+  const { config: approveConfig } = usePrepareTransactionRequest({
+    to: tokenAddress as Address,
+    data:
+      tSenderAddress && tokenAddress
+        ? erc20Abi.encodeFunctionData({
+            name: "approve",
+            args: [tSenderAddress, totalAmount],
+          })
+        : undefined,
+    enabled: Boolean(isReady && needsApproval),
+  });
+
+  const { writeAsync: approveAsync, isLoading: isApproving } = useWriteContract(approveConfig);
+
+  /* =========================
+     HANDLE SUBMIT
+  ========================== */
+  const handleSubmit = async () => {
+    if (!isConnected) return alert("Connect wallet first.");
     if (!tokenAddress || !recipientAddress || !amount) return alert("All fields are required.");
-    if (!tSenderAddress) return alert("Unsupported chain.");
-
-    setIsLoading(true);
+    if (!tSenderAddress) return alert("Unsupported network.");
 
     try {
-      const approvedAmount = await getApprovedAmount();
-
-      // Approve if needed
-      if (approvedAmount < totalAmountNeed) {
-        const approvalHash = await writeContract({
-          abi: erc20Abi,
-          address: tokenAddress as `0x${string}`,
-          functionName: "approve",
-          args: [tSenderAddress as `0x${string}`, BigInt(totalAmountNeed)],
-          chainId,
-        });
-
-        console.log("Approval tx sent:", approvalHash);
-        // RainbowKit/Wagmi automatically waits for tx confirmation if you use their hooks; otherwise you can manually wait
+      if (needsApproval && approveAsync) {
+        await approveAsync();
+        alert("Approval transaction sent!");
+        return;
       }
 
-      console.log("Ready to send:", { tokenAddress, recipientAddress, totalAmountNeed });
-      // TODO: call your TSender contract here for airdrop
-
-      alert("Airdrop ready! Check console for details.");
+      // TODO: implement TSender contract call here
+      console.log("Ready to airdrop:", { tokenAddress, recipientAddress, totalAmount: totalAmount.toString() });
+      alert("Airdrop logic ready (implement contract call).");
     } catch (err) {
-      console.error("Transaction failed:", err);
-      alert("Transaction failed! See console for details.");
-    } finally {
-      setIsLoading(false);
+      console.error(err);
+      alert("Transaction failed, see console.");
     }
-  }
+  };
 
+  /* =========================
+     UI
+  ========================== */
   return (
     <div className="max-w-md mx-auto mt-8 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col gap-4">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-        Token Airdrop
-      </h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Token Airdrop</h2>
 
       <InputField
         label="Token Address"
-        placeholder="0x1234...abcd"
+        placeholder="0x..."
         value={tokenAddress}
         onChange={(e) => setTokenAddress(e.target.value)}
       />
 
       <InputField
         label="Recipient Address"
-        placeholder="0x1234...abcd"
+        placeholder="0x..."
         value={recipientAddress}
         onChange={(e) => setRecipientAddress(e.target.value)}
-        large
       />
 
       <InputField
         label="Amount"
-        placeholder="100, 200, etc."
+        placeholder="100"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
-        large
       />
 
       <button
         onClick={handleSubmit}
-        disabled={isLoading}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50"
+        disabled={isApproving}
+        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg disabled:opacity-50"
       >
-        {isLoading ? "Processing..." : "Send Tokens"}
+        {isApproving ? "Approving..." : "Send Tokens"}
       </button>
     </div>
   );
