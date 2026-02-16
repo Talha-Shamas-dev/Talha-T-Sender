@@ -6,7 +6,10 @@
     "anvil": "anvil",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "2.2.4",
@@ -18,12 +21,16 @@
     "viem": "~2.44.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@synthetixio/synpress": "^4.1.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.11.30",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
+    "jsdom": "^28.1.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.4.0",
-    "vite-tsconfig-paths": "^6.1.1"
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.0.18"
   }
 }
